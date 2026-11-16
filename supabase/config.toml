@@ -1,0 +1,6 @@
+# 두 함수 모두 인증을 함수 안에서 직접 한다 (사용자 토큰 또는 Vault의 ripe_cron_secret)
+[functions.ripe-create]
+verify_jwt = false
+
+[functions.ripe-run]
+verify_jwt = false
