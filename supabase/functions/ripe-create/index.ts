@@ -1,29 +1,38 @@
 // ripe-create: 사용자가 한 말 → 리포트 설정(지시문 포함) 만들기. 부족하면 질문 하나 돌려줌.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { callClaude, cors, costUsd, extractJson, json, MODELS, nextRun, resolveUser, sql } from "../_shared/shared.ts";
+import { callClaude, cors, costUsd, extractJson, json, langName, languageOk, MODELS, nextRun, resolveUser, sql } from "../_shared/shared.ts";
 
 const ICONS = ["cake", "coffee", "music", "house", "chart", "shopping-bag", "flask", "chip", "shirt", "sparkle", "plane", "book", "leaf", "game", "camera", "heart", "megaphone", "briefcase"];
 
-const SYSTEM = `너는 "Ripe Weekly" 앱의 리포트 설계자다. 사용자가 한 말을 보고, 매주 많은 글을 읽어 "지금 상태"를 요약하는 정기 리포트 설정을 만든다.
-반드시 JSON 하나만 출력한다. 설명 문장은 쓰지 않는다.
+const SYSTEM = (lang: string) => `You design a recurring report for the app "Ripe Weekly". The app reads many recent articles every week and summarizes the current state of a field for one user.
+Output exactly one JSON object and nothing else.
 
-규칙
-- 리포트를 만들려면 두 가지가 필요하다: (1) 어떤 분야인지 (2) 사용자가 어떤 입장인지(창업 준비, 가게 운영, 마케터·크리에이터, 연구자·학생, 그냥 관심 등).
-- 둘 중 하나라도 모르겠고, 그 때문에 리포트 방향이 크게 달라진다면 needs_clarification=true 로 하고 질문 하나와 선택지 3~4개만 준다. 질문은 짧은 존댓말.
-- 입장을 알면 눈높이(depth)는 네가 정한다. 단서가 없으면 easy.
-- 이미 clarification_answer 가 주어졌으면 다시 묻지 않는다.
-- title: 짧은 리포트 이름 (예: "디저트·카페", "AI 새 소식", "배터리 소재 연구"). 사용자 언어로.
-- kind: trend | news | research | release | policy | market 중 하나 (어디서 읽을지 정하는 내부 값)
-- regions: 조사할 나라 ISO 코드 배열. 말이 없으면 사용자 나라 + 해외에서 넘어오는 것을 보려면 "GLOBAL" 추가.
-- research_key: 같은 주제를 다른 사람과 공유할 수 있게 짧은 영어 슬러그 + 지역 (예: "dessert-cafe|KR+GLOBAL"). 사람 고유 정보는 넣지 않는다.
-- icon: 다음 중 하나 ${ICONS.join(", ")}
-- cron: "분 시 * * 요일" (요일 0=일). 말이 없으면 "0 8 * * 2" (화요일 아침 8시).
-- summary_tags: 화면에 보여 줄 짧은 태그 3~4개 (예: "창업 준비 관점", "한국 + 해외", "3분", "만드는 법 링크").
-- prompt: 매주 실행할 상세 지시문. 다음을 반드시 포함한다:
-  누구를 위한 리포트인지와 무엇을 판단하려고 보는지 / 조사 범위와 지역 / 지난 리포트에 나온 항목은 빼고 새로 등장하거나 크게 달라진 것만 / 항목마다 한 줄 설명, 단계(새로 등장·뜨는 중·정점·식는 중), 입장에 맞는 관점 한 줄, 있으면 링크 / 숫자는 출처가 있을 때만 / 블로그 글 하나만 근거인 항목은 빼기 / 새로운 게 없으면 억지로 채우지 않기 / 눈높이에 맞는 말투, 처음 보는 용어는 풀어 주기 / 분량 3분.
+LANGUAGE: every user-facing string (question, options, title, summary_tags, prompt) must be written in ${lang}. Proper nouns may keep their original spelling.
 
-출력 형식
-{"needs_clarification": false, "question": null, "options": [], "title": "", "kind": "trend", "depth": "easy|practitioner|expert", "regions": ["KR","GLOBAL"], "output_language": "ko", "research_key": "", "icon": "", "cron": "0 8 * * 2", "summary_tags": [], "prompt": ""}`;
+Rules
+- A report needs two things: (1) the field, (2) the user's standpoint (e.g. preparing to open a shop, running a shop, online seller, marketer or creator, researcher or student, just curious).
+- If either is missing AND it would change the report a lot, set needs_clarification=true and give ONE short polite question with 3-4 options. Otherwise do not ask.
+- If clarification_answer is given, never ask again.
+- depth: easy | practitioner | expert. Decide it from the standpoint; default easy.
+- kind: trend | news | research | release | policy | market (internal value).
+- regions: ISO country codes to research. Default: the user's country, plus "GLOBAL" when things abroad usually reach the user's market first.
+- research_key: short English slug of the field + regions, shared between users with the same field (e.g. "<field-slug>|KR+GLOBAL"). No personal details.
+- icon: one of ${ICONS.join(", ")}.
+- cron: "minute hour * * weekday" (0=Sunday). Default "0 8 * * 2".
+- title: 2-12 characters/words, built from the user's own words.
+- summary_tags: 3-4 very short tags describing THIS report (standpoint, regions, reading time, extras the user asked for). Build them from the request. Never copy wording from these instructions.
+- prompt: the detailed weekly instruction (internal, but the user can read it). It must state:
+  who the report is for and what decision they make with it; scope and regions;
+  only items that are new or changed a lot since last time;
+  per item: what it is in 1-2 sentences, stage (new / rising / peak / cooling), one line on what it means for this user's standpoint, a source link;
+  evidence: an item needs at least two independent sources; a single brand's product counts only as an example of a wider trend;
+  overseas items only when they are likely to reach the user's market, and say why;
+  explain a technical term only if it is actually used in the text;
+  numbers only with a source; if nothing new, say so instead of filling space;
+  tone for the depth level; about 3 minutes to read; written in ${lang}.
+
+Output shape
+{"needs_clarification": false, "question": null, "options": [], "title": "", "kind": "trend", "depth": "easy", "regions": [], "output_language": "", "research_key": "", "icon": "", "cron": "0 8 * * 2", "summary_tags": [], "prompt": ""}`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -42,12 +51,23 @@ Deno.serve(async (req) => {
 
     const r = await callClaude({
       model: MODELS.fast,
-      system: SYSTEM,
+      system: SYSTEM(langName(language)),
       maxTokens: 2000,
       user: JSON.stringify({ user_request: request, clarification_answer: answer, user_country: country, user_language: language }),
     });
-    const spec = extractJson<any>(r.text);
-    const cost = costUsd(MODELS.fast, r.inputTokens, r.outputTokens, 0);
+    let spec = extractJson<any>(r.text);
+    let cost = costUsd(MODELS.fast, r.inputTokens, r.outputTokens, 0);
+    // 사용자 언어가 아니면 한 번 다시 쓰게 한다
+    const visible = [spec.question, ...(spec.options ?? []), spec.title, ...(spec.summary_tags ?? []), spec.prompt].filter(Boolean).join(" ");
+    if (!languageOk(visible, language)) {
+      const fix = await callClaude({
+        model: MODELS.fast, maxTokens: 2500,
+        system: `Rewrite every string value of this JSON in ${langName(language)}. Keep keys, enums (kind, depth, icon, cron, regions, research_key) and meaning unchanged. Output the JSON only.`,
+        user: JSON.stringify(spec),
+      });
+      spec = extractJson<any>(fix.text);
+      cost += costUsd(MODELS.fast, fix.inputTokens, fix.outputTokens, 0);
+    }
 
     if (spec.needs_clarification && !answer) {
       await sql`insert into ripe.events (user_id, event, props) values (${userId}, 'clarify_shown', ${sql.json({ request, question: spec.question, cost_usd: cost })})`;
@@ -66,7 +86,7 @@ Deno.serve(async (req) => {
         insert into ripe.topics (user_id, title, user_request, prompt, cron, timezone, enabled, next_run_at,
           prompt_source, kind, depth, regions, output_language, research_key, icon, icon_source, summary_tags)
         values (${userId}, ${String(spec.title).slice(0, 60)}, ${userRequest}, ${spec.prompt}, ${cron}, ${tz}, true, now(),
-          'generated', ${spec.kind ?? "trend"}, ${spec.depth ?? "easy"}, ${spec.regions ?? [country]}, ${spec.output_language ?? language},
+          'generated', ${spec.kind ?? "trend"}, ${spec.depth ?? "easy"}, ${spec.regions ?? [country]}, ${language},
           ${spec.research_key ?? null}, ${icon}, ${icon ? "ai" : "fallback"}, ${(spec.summary_tags ?? []).slice(0, 4)})
         returning id, title, icon, summary_tags, cron`;
       await tx`insert into ripe.prompt_versions (topic_id, user_id, prompt, reason, summary)

@@ -1,4 +1,4 @@
-// 공용 도구: DB 연결, 사용자 확인, Claude 호출, JSON 꺼내기, 요금 계산, 다음 실행 시각 계산
+// 공용 도구: DB 연결, 사용자 확인, Claude 호출, JSON 꺼내기, 요금 계산, 언어 확인, 다음 실행 시각 계산
 import postgres from "https://deno.land/x/postgresjs@v3.4.5/mod.js";
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
 
@@ -77,6 +77,7 @@ export type ClaudeResult = {
   searches: number;
   stopReason: string;
   blockTypes: string;
+  citedText: string;
 };
 
 // Claude 호출. 검색 도구를 쓰면 pause_turn 이 올 수 있어서 이어서 부른다.
@@ -126,7 +127,12 @@ export async function callClaude(opts: {
   let text = all.slice(lastTool + 1).filter((b) => b.type === "text").map((b) => b.text).join("");
   if (!text.trim()) text = all.filter((b) => b.type === "text").map((b) => b.text).join("");
   const blockTypes = all.map((b) => b.type).join(",");
-  return { text, content: all, inputTokens: inTok, outputTokens: outTok, searches, stopReason, blockTypes };
+  // 인용 정보(출처 주소)를 본문 옆에 붙인 판: 검색 결과를 정리할 때 쓴다
+  const citedText = all.filter((b) => b.type === "text").map((b) => {
+    const cites = (b.citations ?? []).filter((c: any) => c?.url).map((c: any) => `[source: ${c.title ?? ""} | ${c.url}]`);
+    return cites.length ? `${b.text} ${[...new Set(cites)].join(" ")}` : b.text;
+  }).join("");
+  return { text, content: all, inputTokens: inTok, outputTokens: outTok, searches, stopReason, blockTypes, citedText };
 }
 
 // 답에서 JSON 꺼내기 (```json 블록 우선, 없으면 첫 { ~ 마지막 })
@@ -166,7 +172,36 @@ export function searchDigest(content: any[]) {
   return lines.join("\n");
 }
 
+// ---- 언어 ----
+export const LANG_NAMES: Record<string, string> = {
+  ko: "Korean", en: "English", ja: "Japanese", zh: "Chinese", es: "Spanish", fr: "French", de: "German",
+  pt: "Portuguese", it: "Italian", vi: "Vietnamese", th: "Thai", id: "Indonesian",
+};
+export function langName(code: string) {
+  return LANG_NAMES[(code || "en").slice(0, 2).toLowerCase()] ?? "English";
+}
+const SCRIPT: Record<string, RegExp> = {
+  ko: /[\uAC00-\uD7A3]/g,
+  ja: /[\u3040-\u30FF\u4E00-\u9FFF]/g,
+  zh: /[\u4E00-\u9FFF]/g,
+  th: /[\u0E00-\u0E7F]/g,
+};
+const CJK = /[\uAC00-\uD7A3\u3040-\u30FF\u4E00-\u9FFF]/g;
+// 사용자 언어 글자 비율로 확인. 라틴 문자 언어는 한중일 글자가 거의 없어야 통과
+export function languageOk(text: string, code: string) {
+  const letters = (text.match(/\p{L}/gu) ?? []).length;
+  if (letters < 10) return true;
+  const c = (code || "en").slice(0, 2).toLowerCase();
+  const re = SCRIPT[c];
+  if (re) return (text.match(re) ?? []).length / letters >= 0.5;
+  return (text.match(CJK) ?? []).length / letters <= 0.05;
+}
+
 // 검색 결과 블록에서 실제로 읽은 문서 수·출처 수 세기
+export function domainOf(url: string) {
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch (_) { return ""; }
+}
+
 export function countSources(content: any[]) {
   const urls = new Set<string>();
   const domains = new Set<string>();
