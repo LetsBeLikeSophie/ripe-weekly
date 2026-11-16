@@ -53,3 +53,20 @@ supabase functions deploy ripe-run
 
 - 새로 조사할 때: 검색 7회, 글 63개, 약 80초, 약 $0.09
 - 같은 주제를 다른 사람이 받을 때 (조사 재사용): 약 15초, 약 $0.002 (영어 사용자에게도 같은 조사로 영어 리포트)
+
+## 앱 (app/)
+
+Expo SDK 58 + expo-router. 화면은 목업(B·S 번호)을 그대로 따르고, 공용 부품은 `src/components` 하나로 같이 쓴다.
+
+- `src/theme/tokens.ts` 색·글꼴·간격 · `src/components/ui.tsx` 버튼·카드·칩·표·하단 탭 · `Sheet.tsx` 모든 모달 시트 틀 · `Switch`, `SwipeRow`, `Icon`, `RipeMark`, `TrendCurve`
+- 실행: `cd app && npm install && npx expo start` (`.env` 에 `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_KEY`)
+- 첫 리포트는 익명 계정 → 카카오·구글 로그인 때 같은 계정에 붙임
+
+| 함수 | 하는 일 |
+|---|---|
+| ripe-create / ripe-run | 리포트 설정 만들기 / 리포트 만들기 |
+| ripe-ask | 리포트에 물어보기 (월 10번, 플러스 30번) · 동의한 경우만 "내 상황" 기억 |
+| ripe-fix | 말로 고치기 미리보기 → 적용 / 되돌리기 (지시문은 서버만 바꿈) |
+| ripe-account | 내 데이터 내려받기 · 탈퇴 |
+
+아직 남은 것: 스토어 결제 연결(RevenueCat 등), 음성 입력(개발 빌드), 푸시·카톡·메일 발송, 매주 자동 실행(pg_cron).

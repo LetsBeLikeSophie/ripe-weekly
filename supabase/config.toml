@@ -4,3 +4,12 @@ verify_jwt = false
 
 [functions.ripe-run]
 verify_jwt = false
+
+[functions.ripe-ask]
+verify_jwt = false
+
+[functions.ripe-fix]
+verify_jwt = false
+
+[functions.ripe-account]
+verify_jwt = false
