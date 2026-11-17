@@ -1,6 +1,6 @@
 // B13 요금제: 월간/연간, 베이직·플러스, 자동 결제 안내, 약관·구매 복원
 import { useState } from "react";
-import { Linking, Pressable, ScrollView, Text, View } from "react-native";
+import { Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, IconButton, T, TextButton, Title } from "../components/ui";
@@ -67,7 +67,11 @@ export default function Paywall() {
       </ScrollView>
       <View style={{ paddingHorizontal: space.screenX, paddingBottom: inset.bottom + 10, gap: 8 }}>
         {err ? <T v="caption" c={color.red} style={{ textAlign: "center" }}>{err}</T> : null}
-        <View style={{ flexDirection: "row" }}><Button label={`7일 무료로 시작`} loading={busy} onPress={buy} /></View>
+        {Platform.OS === "web" ? (
+          <T v="small" c={color.text3} style={{ textAlign: "center" }}>구독은 Ripe Weekly 앱에서 할 수 있어요. 같은 계정으로 로그인하면 웹에서도 그대로 받아요.</T>
+        ) : (
+          <View style={{ flexDirection: "row" }}><Button label={`7일 무료로 시작`} loading={busy} onPress={buy} /></View>
+        )}
         <T v="micro" c={color.text4} style={{ textAlign: "center" }}>7일 무료 체험이 끝나면 <Text style={{ fontFamily: font.bodyBold }}>{renew}</Text> 자동 결제돼요. 결제일 24시간 전까지 스토어 구독 관리에서 언제든 해지할 수 있어요.</T>
         <View style={{ flexDirection: "row", justifyContent: "center", gap: 4 }}>
           <TextButton label="이용약관" underline onPress={() => router.push({ pathname: "/terms", params: { tab: "terms" } })} />

@@ -1,6 +1,6 @@
 // S_Share: 카카오톡 · 이메일 · 이미지 (카드 이미지를 사진에 저장)
 import { ComponentRef, useEffect, useRef, useState } from "react";
-import { Pressable, Share, Text, View } from "react-native";
+import { Platform, Pressable, Share, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { captureRef } from "react-native-view-shot";
 import * as MailComposer from "expo-mail-composer";
@@ -11,7 +11,8 @@ import { color, font, radius } from "../theme/tokens";
 import { getReport, getTopic, Report, Topic } from "../lib/api";
 import { md } from "../lib/format";
 
-const WEB = "https://ripe.weekly/r/"; // 공유 웹 보기 주소 (S_SharedWeb). 도메인은 정해지면 바꾼다.
+// 공유 웹 보기(S_SharedWeb, https://ripe.itssophie.dev/r/<id>)는 아직 없다. 생기기 전엔 링크 대신 앱 주소만 붙인다.
+const SITE = "https://ripe.itssophie.dev";
 
 export default function ShareSheet() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -21,8 +22,7 @@ export default function ShareSheet() {
   const shot = useRef<ComponentRef<typeof View>>(null);
   useEffect(() => { getReport(id).then((x) => { setR(x); if (x) getTopic(x.topic_id).then(setT); }); }, [id]);
 
-  const link = WEB + id;
-  const text = `${r?.title ?? ""}\n${r?.payload?.tldr ?? ""}\n${link}`;
+  const text = `${r?.title ?? ""}\n${r?.payload?.tldr ?? ""}\n\nRipe Weekly · ${SITE}`;
   const acts = [
     { id: "kakao", label: "카카오톡", mark: "K", bg: color.kakao, fg: color.kakaoInk,
       run: async () => { await Share.share({ message: text }); setMsg("카카오톡을 골라 보내 주세요"); } },
@@ -33,6 +33,11 @@ export default function ShareSheet() {
       } },
     { id: "img", label: "이미지", mark: "□", bg: color.muted, fg: color.ink,
       run: async () => {
+        if (Platform.OS === "web") {
+          const uri = shot.current ? await captureRef(shot, { format: "png", quality: 1, result: "data-uri" }) : null;
+          if (uri) { const a = document.createElement("a"); a.href = uri; a.download = "ripe-weekly.png"; a.click(); setMsg("카드 이미지를 내려받았어요"); }
+          return;
+        }
         const perm = await MediaLibrary.requestPermissionsAsync(true);
         if (!perm.granted) { setMsg("사진 저장을 허용해 주세요"); return; }
         const uri = shot.current ? await captureRef(shot, { format: "png", quality: 1 }) : null;
