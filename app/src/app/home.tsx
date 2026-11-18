@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomNav, Button, Chip, Hand, IconTile, ProgressBar, T, Title } from "../components/ui";
 import { Icon } from "../components/Icon";
 import { SwipeRow } from "../components/SwipeRow";
+import { RipeMarkSolid } from "../components/RipeMark";
+import { supabase } from "../lib/supabase";
 import { color, font, radius, space } from "../theme/tokens";
 import { getProfile, listReports, listTopics, Profile, Report, Topic } from "../lib/api";
 import { monthDay, scheduleLabel } from "../lib/format";
@@ -19,12 +21,16 @@ export default function Home() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [offline, setOffline] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [initial, setInitial] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const [t, r, p] = await Promise.all([listTopics(), listReports(), getProfile()]);
       setTopics(t); setReports(r); setProfile(p); setOffline(false);
+      const { data: u } = await supabase.auth.getUser();
+      const name = (u.user?.user_metadata?.name ?? u.user?.user_metadata?.full_name ?? "") as string;
+      setInitial(name.trim().slice(0, 1));
     } catch { setOffline(true); setTopics((x) => x ?? []); }
     setLoading(false);
   }, []);
@@ -46,7 +52,7 @@ export default function Home() {
           ) : null}
           <Pressable accessibilityRole="link" accessibilityLabel="프로필" onPress={() => router.push("/profile")} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
             <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: color.blue, alignItems: "center", justifyContent: "center" }}>
-              <Icon name="sparkle" size={16} stroke={color.white} />
+              {initial ? <Text style={{ fontFamily: font.title, fontSize: 16, color: color.white }}>{initial}</Text> : <RipeMarkSolid size={18} />}
             </View>
           </Pressable>
         </View>

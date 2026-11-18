@@ -1,4 +1,4 @@
-// Ripe 마크: 동그란 열매에 잎 하나. 안이 아래에서부터 천천히 차오르고(익는 중) 잎이 살짝 흔들린다.
+// Ripe 마크: 동그란 열매에 잎 하나. 안이 비스듬하게(오른쪽이 높게) 아래에서부터 천천히 차오른다(익는 중).
 import { useEffect, useRef } from "react";
 import { Animated, Easing } from "react-native";
 import Svg, { Circle, ClipPath, Defs, G, Path, Rect } from "react-native-svg";
@@ -26,7 +26,9 @@ export function RipeMark({ size = 72, speed = 4000, tint = color.blue, still = f
         <ClipPath id={id}><Circle cx={50} cy={58} r={33} /></ClipPath>
       </Defs>
       <G clipPath={`url(#${id})`}>
-        <ARect x={12} y={y as unknown as number} width={76} height={76} fill={tint} />
+        <G rotation={-14} originX={50} originY={58}>
+          <ARect x={0} y={y as unknown as number} width={100} height={90} fill={tint} />
+        </G>
       </G>
       <Circle cx={50} cy={58} r={33} fill="none" stroke={tint} strokeWidth={8} />
       <Path d="M50 25c0-7 2-11 6-14" fill="none" stroke={tint} strokeWidth={7} strokeLinecap="round" />
